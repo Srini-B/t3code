@@ -74,7 +74,7 @@ Remove the reported overrides or choose Full access. Provider permissions govern
 tool calls; they do not sandbox Amp plugins or their lifecycle hooks.
 
 Image uploads, file attachments, skills, and T3's connected tools use the native
-Amp runtime. Amp does not expose a separate plan mode or a manual compaction
+Amp runtime. T3 does not surface Amp's plan mode or a manual compaction
 command. Ask for a plan in a normal message when needed.
 
 Expand tool activity to see result previews. Subagent activity includes the

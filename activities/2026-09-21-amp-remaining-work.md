@@ -58,13 +58,22 @@ the mobile change reuses the update RPC verified natively on 13 September.
 
 ## Still open, by cause
 
-- Upstream: Amp's own next inference after a void-returning plugin
-  (`400 Missing required parameter`), Ultra's unknown-provider 400, native
-  response latency, and missing child subagent transcripts.
+- Upstream Amp behavior: the next inference after a void-returning plugin fails
+  (`400 Missing required parameter`), Ultra fails with an unknown-provider 400,
+  and native response latency can run to minutes.
 - Requires another machine: native Windows and Android execution; macOS x64 and
   Linux ARM64.
-- Requires a production release: iOS App Store/Play builds were never exercised;
-  the simulator checks used development builds.
-- Design decisions, not gaps: protected Painter URL retrieval, plugin dialogs,
-  conversation rollback, and universal update reporting across secondary remote
-  environments.
+- Open design decisions: rich tool-output rendering, bridging Amp's plugin
+  dialogs into T3 approvals, structured questions (`respondToUserInput`), and
+  plan mode.
+
+## Accepted limitations (decided 2026-09-21)
+
+- Subagent transcripts: Amp exposes the parent task and its result only. The
+  user guide documents this as expected behavior.
+- Production release coverage: App Store and Play builds are out of scope for
+  now; all mobile verification used development builds.
+- Universal update reporting across secondary remote environments:
+  deprioritized.
+- Protected Painter URL retrieval and conversation rollback stay as documented
+  design decisions in the user guide.
