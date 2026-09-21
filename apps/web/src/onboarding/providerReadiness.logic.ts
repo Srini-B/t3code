@@ -1,4 +1,5 @@
 import {
+  AmpSettings,
   ClaudeSettings,
   CodexSettings,
   type ExecutionEnvironmentPlatformOs,
@@ -8,6 +9,7 @@ import {
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
+const decodeAmpSettings = Schema.decodeUnknownOption(AmpSettings);
 const decodeClaudeSettings = Schema.decodeUnknownOption(ClaudeSettings);
 const decodeCodexSettings = Schema.decodeUnknownOption(CodexSettings);
 const SAFE_SHELL_BINARY_PATTERN = /^[A-Za-z0-9_./:\\-]+$/;
@@ -72,11 +74,14 @@ export function selectOnboardingProvidersByDriver(
 }
 
 /**
- * Official standalone installers. Neither needs Node or npm, and both land in
- * the paths the server's provider maintenance recognizes as native, so the
- * one-click updater in Settings keeps working after install.
+ * Official native installers run on the selected environment. Amp's Windows
+ * installer also selects a compatible executable for ARM64 emulation.
  */
 const NATIVE_INSTALL_COMMANDS = {
+  amp: {
+    windows: "irm https://ampcode.com/install.ps1 | iex",
+    posix: "curl -fsSL https://ampcode.com/install.sh | bash",
+  },
   claudeAgent: {
     windows: "irm https://claude.ai/install.ps1 | iex",
     posix: "curl -fsSL https://claude.ai/install.sh | bash",
@@ -109,6 +114,13 @@ export function resolveOnboardingProviderLoginCommand(
 ): string {
   const instance = settings.providerInstances[provider.instanceId];
 
+  if (provider.driver === "amp") {
+    return resolveAmpLoginCommand(
+      instance ? (instance.config ?? {}) : settings.providers.amp,
+      platform,
+    );
+  }
+
   if (provider.driver === "claudeAgent") {
     const config = decodeClaudeSettings(
       instance ? (instance.config ?? {}) : settings.providers.claudeAgent,
@@ -126,4 +138,22 @@ export function resolveOnboardingProviderLoginCommand(
   }
 
   return provider.driver;
+}
+
+export function resolveAmpLoginCommand(
+  config: unknown,
+  platform: ExecutionEnvironmentPlatformOs,
+): string {
+  const decoded = decodeAmpSettings(config ?? {});
+  const settings = Option.isSome(decoded) ? decoded.value : undefined;
+  const binary = quoteProviderBinary(settings?.binaryPath ?? "amp", "amp", platform);
+  const settingsFile = settings?.settingsFile;
+  if (!settingsFile) return `${binary} login`;
+  const argument =
+    platform === "windows"
+      ? `'${settingsFile.replaceAll("'", "''")}'`
+      : settingsFile.startsWith("~/")
+        ? `~/'${settingsFile.slice(2).replaceAll("'", `'"'"'`)}'`
+        : `'${settingsFile.replaceAll("'", `'"'"'`)}'`;
+  return `${binary} --settings-file ${argument} login`;
 }

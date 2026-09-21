@@ -78,6 +78,37 @@ with a readable, current version.
 
 ## Protocol traps
 
+Amp's native JSONL process emits initialization only after its first user message.
+Session creation therefore records a local session, and the first turn starts the
+process and waits for initialization. An assistant `end_turn` ends one turn while
+stdin stays open. Closing stdin requests the final result and flushes native
+history; killing an idle process can lose its latest persisted messages.
+The native stream emits completed messages and tool results, omits nested subagent
+messages, and serializes rich result objects as JSON text. Generic tool-name
+support does not provide incremental progress, child transcripts, or rich artifact
+rendering. Native plugin dialogs use a separate UI bridge that T3 does not expose.
+Plugin tools can complete without returning a value. Native JSONL then omits
+`tool_result.content`; decode that absence as empty content, not a broken stream.
+See the [Amp adapter](../../apps/server/src/provider/Layers/AmpAdapter.ts).
+
+Amp permission delegates accept an executable without arguments. T3 uses its Node
+runtime with a process-local preload to forward requests to a per-session loopback
+listener. Workspace and managed permission arrays precede the supplied user
+settings, so supervised launches reject conflicting overrides. Tool denial cannot
+prevent native plugin lifecycle hooks. These constraints also apply to auxiliary
+text generation; a prompt instruction is not an execution boundary.
+
+Amp account MCP tools run through cloud `tool_search` and `code_exec`, independently
+of executor MCP configuration. Native permission delegates do not receive those
+cloud calls. The adapter can display their events but cannot present local tool
+approvals for them. Preserve native account access when adding T3's executor MCP
+entry through the merging `--mcp-config` flag.
+The installed native `tool.call` plugin hook also omits these cloud calls, even
+when the same plugin receives local tool events. `amp.tools.disable` can remove
+the two tools from the native session catalog, but cannot turn them into delegated
+calls. A separately authenticated executor MCP connection is the supported route
+for local approvals.
+
 Codex async questions arrive as notifications and are answered with a new user message. There is
 no pending RPC response to send. Blocking questions still use the request/response path. The
 [adapter](../../apps/server/src/provider/Layers/CodexAdapter.ts) distinguishes them; the

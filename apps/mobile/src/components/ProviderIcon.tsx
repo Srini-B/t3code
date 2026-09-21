@@ -10,11 +10,28 @@ type ProviderIconProps = {
   readonly size?: number;
 };
 
+const ICON_COLORS = {
+  dark: {
+    mono: "#e5e5e5",
+    grok: "#F5F5F5",
+    cursor: "#EDECEC",
+    openCodeInner: "#4B4646",
+    openCodeOuter: "#F1ECEC",
+  },
+  light: {
+    mono: "#171717",
+    grok: "#0F0F0F",
+    cursor: "#26251E",
+    openCodeInner: "#CFCECD",
+    openCodeOuter: "#211E1E",
+  },
+};
+
 export function ProviderIcon(props: ProviderIconProps) {
   const { themeAppearance } = useAppearancePreferences();
-  const isDarkMode = themeAppearance === "dark";
+  const colors = ICON_COLORS[themeAppearance === "dark" ? "dark" : "light"];
   const size = props.size ?? 16;
-  const mono = isDarkMode ? "#e5e5e5" : "#171717";
+  const mono = colors.mono;
 
   if (props.provider?.trim().toLowerCase() === "antigravity") {
     return (
@@ -23,6 +40,17 @@ export function ProviderIcon(props: ProviderIconProps) {
         style={{ width: size, height: size }}
         contentFit="contain"
       />
+    );
+  }
+
+  if (props.provider === "amp") {
+    return (
+      <Svg width={size} height={size} viewBox="-12 0 305 155" fill="none">
+        <Path
+          fill={mono}
+          d="M236.014 20C260.431 20.0001 280.602 37.4115 280.603 64.7432C280.602 93.5337 260.065 114.166 233.52 114.166C224.158 114.166 215.639 112.422 208.63 108.49C202.886 105.27 198.203 100.605 194.919 94.3379L188.115 141.822L187.946 143.016H174.214L174.448 141.423L191.772 22.4941H205.372L203.937 31.3369C212.143 23.8608 223.2 20.0002 236.014 20ZM47.082 20.1543C56.4435 20.1543 65.0012 21.8991 72.0488 25.8486C77.8222 29.0831 82.5323 33.7713 85.8271 40.085L88.1201 23.6924L88.2861 22.4932H101.863L89.1611 110.633L88.9873 111.826H75.4092L76.7227 102.855C68.5854 110.456 57.3981 114.323 44.5889 114.323C20.1709 114.323 0.000167223 96.9087 0 69.5771C0.000149745 40.7854 20.54 20.1549 47.082 20.1543ZM116.234 110.636L116.061 111.827H102.485L115.351 23.6855L115.521 22.4941H129.083L116.234 110.636ZM140.673 110.636L140.499 111.827H126.924L139.789 23.6855L139.96 22.4941H153.521L140.673 110.636ZM177.958 22.4941L165.108 110.636L164.935 111.827H151.36L164.225 23.6855L164.396 22.4941H177.958ZM48.4854 31.9844C27.8638 31.985 14.0133 48.3799 14.0127 68.9521C14.0127 77.7907 16.8094 86.1771 22.3145 92.334C27.7973 98.4657 36.0631 102.493 47.2402 102.493C67.8534 102.493 81.7122 85.9487 81.7129 65.3682C81.7129 55.4076 78.2493 47.0792 72.4131 41.2441C66.5794 35.4088 58.2871 31.9844 48.4854 31.9844ZM233.362 31.8291C212.749 31.8297 198.89 48.3716 198.89 68.9521C198.89 78.9123 202.356 87.2403 208.189 93.0742C214.023 98.9107 222.315 102.336 232.116 102.336C252.738 102.335 266.589 85.9407 266.59 65.3682C266.59 56.5296 263.795 48.1424 258.29 41.9863C252.807 35.8551 244.542 31.8291 233.362 31.8291Z"
+        />
+      </Svg>
     );
   }
 
@@ -38,7 +66,7 @@ export function ProviderIcon(props: ProviderIconProps) {
   }
 
   if (props.provider === "grok") {
-    const fill = isDarkMode ? "#F5F5F5" : "#0F0F0F";
+    const fill = colors.grok;
     return (
       <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
         <Path
@@ -57,7 +85,7 @@ export function ProviderIcon(props: ProviderIconProps) {
     return (
       <Svg width={size} height={size} viewBox="0 0 466.73 532.09" fill="none">
         <Path
-          fill={isDarkMode ? "#EDECEC" : "#26251E"}
+          fill={colors.cursor}
           d="M457.43,125.94L244.42,2.96c-6.84-3.95-15.28-3.95-22.12,0L9.3,125.94c-5.75,3.32-9.3,9.46-9.3,16.11v247.99c0,6.65,3.55,12.79,9.3,16.11l213.01,122.98c6.84,3.95,15.28,3.95,22.12,0l213.01-122.98c5.75-3.32,9.3-9.46,9.3-16.11v-247.99c0-6.65-3.55-12.79-9.3-16.11h-.01ZM444.05,151.99l-205.63,356.16c-1.39,2.4-5.06,1.42-5.06-1.36v-233.21c0-4.66-2.49-8.97-6.53-11.31L24.87,145.67c-2.4-1.39-1.42-5.06,1.36-5.06h411.26c5.84,0,9.49,6.33,6.57,11.39h-.01Z"
         />
       </Svg>
@@ -67,8 +95,8 @@ export function ProviderIcon(props: ProviderIconProps) {
   if (props.provider === "opencode") {
     return (
       <Svg width={size} height={size} viewBox="0 0 32 40" fill="none">
-        <Path d="M24 32H8V16H24V32Z" fill={isDarkMode ? "#4B4646" : "#CFCECD"} />
-        <Path d="M24 8H8V32H24V8ZM32 40H0V0H32V40Z" fill={isDarkMode ? "#F1ECEC" : "#211E1E"} />
+        <Path d="M24 32H8V16H24V32Z" fill={colors.openCodeInner} />
+        <Path d="M24 8H8V32H24V8ZM32 40H0V0H32V40Z" fill={colors.openCodeOuter} />
       </Svg>
     );
   }

@@ -13,7 +13,7 @@ import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
 } from "@t3tools/client-runtime/state/runtime";
-import { CommandId, ProviderDriverKind, ThreadId } from "@t3tools/contracts";
+import { AmpSettings, CommandId, ProviderDriverKind, ThreadId } from "@t3tools/contracts";
 import * as Schema from "effect/Schema";
 import {
   ArrowRightIcon,
@@ -606,7 +606,8 @@ function PairingForm({
 
 // ── Step 3: agents ───────────────────────────────────────────
 
-const PRIMARY_AGENT_DRIVERS = ["claudeAgent", "codex"] as const;
+const PRIMARY_AGENT_DRIVERS = ["claudeAgent", "codex", "amp"] as const;
+const decodeAmpSettings = Schema.decodeUnknownSync(AmpSettings);
 type OnboardingAgentDriver = (typeof PRIMARY_AGENT_DRIVERS)[number];
 
 /** Setup values stay fixed while provider probes refresh the surrounding cards. */
@@ -619,13 +620,6 @@ interface AgentTerminalSession {
   readonly keybindings: ServerConfig["keybindings"];
 }
 
-/**
- * Claude Code and Codex use live probe status. Install opens the built-in
- * terminal inline with the vendor's standalone installer pre-typed. The update
- * RPC can't install a binary that isn't there yet (it infers the installer from
- * the installed binary's path), and the terminal also handles the interactive
- * login that follows.
- */
 function AgentsStep({
   environmentIds,
   onContinue,
@@ -676,6 +670,47 @@ function ConnectedAgentsStep({
   });
   const serverConfig = useAtomValue(serverEnvironment.configValueAtom(environmentId));
   const [terminalSession, setTerminalSession] = useState<AgentTerminalSession | null>(null);
+  const updateSettings = useAtomCommand(serverEnvironment.updateSettings);
+  const [enablingAmp, setEnablingAmp] = useState(false);
+
+  const enableAmp = async (provider: ServerProvider) => {
+    if (!serverConfig || enablingAmp) return;
+    const settings = serverConfig.settings;
+    const instance = settings.providerInstances[provider.instanceId];
+    setEnablingAmp(true);
+    try {
+      const result = await updateSettings({
+        environmentId,
+        input: {
+          patch: instance
+            ? {
+                providerInstances: {
+                  ...settings.providerInstances,
+                  [provider.instanceId]: {
+                    ...instance,
+                    enabled: true,
+                    config: {
+                      ...decodeAmpSettings(instance.config ?? {}),
+                      enabled: true,
+                    },
+                  },
+                },
+              }
+            : { providers: { amp: { enabled: true } } },
+        },
+      });
+      if (result._tag === "Success") {
+        await refreshProviders({ environmentId, input: {} });
+      }
+    } catch (error) {
+      toastManager.add({
+        type: "error",
+        title: "Could not enable Amp",
+        description: error instanceof Error ? error.message : "Update failed.",
+      });
+    }
+    setEnablingAmp(false);
+  };
 
   // Re-probe on entry so freshly installed CLIs show up without a manual
   // refresh; harmless when nothing changed (single-flighted per environment).
@@ -700,6 +735,9 @@ function ConnectedAgentsStep({
             provider={provider}
             terminalOpen={terminalSession?.driver === driver}
             terminalAvailable={serverConfig !== null}
+            {...(driver === "amp" && provider
+              ? { onEnable: () => void enableAmp(provider), isEnabling: enablingAmp }
+              : {})}
             onOpenTerminal={() => {
               if (provider === undefined || serverConfig === null) return;
               setTerminalSession({
@@ -737,17 +775,43 @@ function ConnectedAgentsStep({
   );
 }
 
+function DisabledAgentAction({
+  onEnable,
+  isEnabling,
+  terminalAvailable,
+}: {
+  readonly onEnable: (() => void) | undefined;
+  readonly isEnabling: boolean | undefined;
+  readonly terminalAvailable: boolean;
+}) {
+  if (!onEnable) return <span className="text-xs text-muted-foreground">Disabled</span>;
+  return (
+    <Button
+      size="xs"
+      variant="ghost"
+      onClick={onEnable}
+      disabled={isEnabling || !terminalAvailable}
+    >
+      {isEnabling ? "Enabling..." : "Enable"}
+    </Button>
+  );
+}
+
 function AgentCard({
   driver,
   provider,
   terminalOpen,
   terminalAvailable,
+  onEnable,
+  isEnabling,
   onOpenTerminal,
 }: {
   readonly driver: OnboardingAgentDriver;
   readonly provider: ServerProvider | undefined;
   readonly terminalOpen: boolean;
   readonly terminalAvailable: boolean;
+  readonly onEnable?: () => void;
+  readonly isEnabling?: boolean;
   readonly onOpenTerminal: () => void;
 }) {
   const meta = getDriverOption(ProviderDriverKind.make(driver));
@@ -777,7 +841,11 @@ function AgentCard({
         ) : providerState === "checking" ? (
           <span className="text-xs text-muted-foreground">Checking...</span>
         ) : providerState === "disabled" ? (
-          <span className="text-xs text-muted-foreground">Disabled</span>
+          <DisabledAgentAction
+            onEnable={onEnable}
+            isEnabling={isEnabling}
+            terminalAvailable={terminalAvailable}
+          />
         ) : providerState === "attention" ? (
           <span className="text-xs text-muted-foreground">{summary.headline}</span>
         ) : (
