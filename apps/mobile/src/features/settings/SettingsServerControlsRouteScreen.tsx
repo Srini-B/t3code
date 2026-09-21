@@ -25,6 +25,7 @@ import { SettingsSection } from "./components/SettingsSection";
 import { SettingsControlRow } from "./components/SettingsControlRow";
 import { SettingsSwitchRow } from "./components/SettingsSwitchRow";
 import { SettingsProjectOverridesSection } from "./components/SettingsProjectOverridesSection";
+import { ProviderUpdatesSection } from "./ProviderUpdatesSection";
 import { useSettingsEnvironmentFilter } from "./settings-environment-filter";
 import {
   planMobileScopedSettingsClear,
@@ -336,36 +337,43 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
               ) : null}
 
               {props.page === "maintenance" ? (
-                <SettingsSection title="Updates">
-                  <FanoutSwitchRow
-                    icon="arrow.clockwise"
-                    label="Check provider updates"
-                    subtitle={
-                      projectSelected
-                        ? "Environment-wide setting. Select All projects to change it."
-                        : "Check installed provider CLIs for newer versions."
-                    }
-                    value={uniform("enableProviderUpdateChecks")}
-                    disabled={disabledFor("enableProviderUpdateChecks")}
-                    onValueChange={(value) => write({ enableProviderUpdateChecks: value })}
-                  />
-                  <View className="border-t border-border-subtle">
+                <>
+                  <SettingsSection title="Updates">
                     <FanoutSwitchRow
-                      icon="arrow.uturn.forward"
-                      label="Continue after restart"
+                      icon="arrow.clockwise"
+                      label="Check provider updates"
                       subtitle={
-                        supportsContinuation
-                          ? "Resume interrupted threads after an update or restart."
-                          : "Update older servers to control restart continuation."
+                        projectSelected
+                          ? "Environment-wide setting. Select All projects to change it."
+                          : "Check installed provider CLIs for newer versions."
                       }
-                      value={uniform("continueThreadsAfterServerUpdate")}
-                      disabled={
-                        disabledFor("continueThreadsAfterServerUpdate") || !supportsContinuation
-                      }
-                      onValueChange={(value) => write({ continueThreadsAfterServerUpdate: value })}
+                      value={uniform("enableProviderUpdateChecks")}
+                      disabled={disabledFor("enableProviderUpdateChecks")}
+                      onValueChange={(value) => write({ enableProviderUpdateChecks: value })}
                     />
-                  </View>
-                </SettingsSection>
+                    <View className="border-t border-border-subtle">
+                      <FanoutSwitchRow
+                        icon="arrow.uturn.forward"
+                        label="Continue after restart"
+                        subtitle={
+                          supportsContinuation
+                            ? "Resume interrupted threads after an update or restart."
+                            : "Update older servers to control restart continuation."
+                        }
+                        value={uniform("continueThreadsAfterServerUpdate")}
+                        disabled={
+                          disabledFor("continueThreadsAfterServerUpdate") || !supportsContinuation
+                        }
+                        onValueChange={(value) =>
+                          write({ continueThreadsAfterServerUpdate: value })
+                        }
+                      />
+                    </View>
+                  </SettingsSection>
+                  {reference !== null && targets.length === 1 ? (
+                    <ProviderUpdatesSection environmentId={reference.environment.environmentId} />
+                  ) : null}
+                </>
               ) : null}
             </>
           )}

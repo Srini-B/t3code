@@ -41,7 +41,8 @@ installation method. For a native installation in a custom directory, set
 Instances that use the same binary share its installed version. Updating one
 updates that installation; refresh the other instances to see the new version
 immediately. Separate environments have separate installations. Provider update
-controls are available in the web and desktop clients.
+controls are available in the web, desktop, and mobile clients. On mobile, open
+**Settings > Environment > Maintenance > Provider versions**.
 
 ## Select an Amp mode
 
