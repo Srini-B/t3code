@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect";
 
 import { TurnId } from "@t3tools/contracts";
 
-import { ampMessageEvents, makeAmpTurn, type AmpTurn } from "./AmpEvents.ts";
+import { ampMessageEvents, makeAmpTurn, type AmpEvent, type AmpTurn } from "./AmpEvents.ts";
 import { decodeAmpMessage, type AmpMessage } from "./AmpProtocol.ts";
 
 const turnId = TurnId.make("turn-1");
@@ -306,6 +306,77 @@ describe("ampMessageEvents lifecycle", () => {
       "collab_agent_tool_call",
       "dynamic_tool_call",
     ]);
+  });
+
+  it("titles subagent tools from description or prompt instead of the tool name", () => {
+    const turn = makeAmpTurn(turnId);
+    const events = ampMessageEvents(
+      {
+        session_id: "native-1",
+        type: "assistant",
+        message: {
+          id: "msg-task",
+          content: [
+            {
+              type: "tool_use",
+              id: "tool-task",
+              name: "task",
+              input: { description: "Audit auth flow", prompt: "Do the audit" },
+            },
+            {
+              type: "tool_use",
+              id: "tool-task-prompt",
+              name: "task",
+              input: { prompt: "Only a prompt".padEnd(300, "!") },
+            },
+          ],
+        },
+      } as unknown as AmpMessage,
+      turn,
+    );
+    const taskItem = events.find(
+      (event): event is Extract<AmpEvent, { type: "item.started" }> =>
+        event.type === "item.started" && event.itemId === "tool-task",
+    )!;
+    expect(taskItem.payload.title).toBe("Audit auth flow");
+    const taskStarted = events.find(
+      (event): event is Extract<AmpEvent, { type: "task.started" }> =>
+        event.type === "task.started",
+    )!;
+    expect(taskStarted.payload.title).toBe("Audit auth flow");
+    expect(taskStarted.payload.description).toBe("Audit auth flow");
+    const promptItem = events.find(
+      (event): event is Extract<AmpEvent, { type: "item.started" }> =>
+        event.type === "item.started" && event.itemId === "tool-task-prompt",
+    )!;
+    expect(promptItem.payload.title).toBe("Only a prompt".padEnd(200, "!"));
+  });
+
+  it("titles skill tool reads with the skill name from input", () => {
+    const turn = makeAmpTurn(turnId);
+    const events = ampMessageEvents(
+      {
+        session_id: "native-1",
+        type: "assistant",
+        message: {
+          id: "msg-skill",
+          content: [
+            {
+              type: "tool_use",
+              id: "tool-skill",
+              name: "skill",
+              input: { skill: "poteto-mode" },
+            },
+          ],
+        },
+      } as unknown as AmpMessage,
+      turn,
+    );
+    const started = events.find(
+      (event): event is Extract<AmpEvent, { type: "item.started" }> =>
+        event.type === "item.started",
+    )!;
+    expect(started.payload.title).toBe("Reading poteto-mode");
   });
 });
 

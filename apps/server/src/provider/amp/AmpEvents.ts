@@ -58,6 +58,60 @@ function looksLikeJsonDump(value: string): boolean {
   return trimmed.startsWith("{") || trimmed.startsWith("[");
 }
 
+function stringInput(
+  input: Readonly<Record<string, unknown>> | undefined,
+  key: string,
+): string | undefined {
+  const value = input?.[key];
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+/**
+ * Amp's `task` tool carries the human-readable goal on the request. Raw
+ * `block.name` ("task") is what shows up in the sub-agents panel otherwise;
+ * Claude surfaces `description` the same way.
+ */
+function subagentTitle(
+  input: Readonly<Record<string, unknown>> | undefined,
+  fallback: string,
+): string {
+  const description = stringInput(input, "description");
+  if (description) return description.slice(0, 200);
+  const prompt = stringInput(input, "prompt");
+  if (prompt) return prompt.slice(0, 200);
+  return fallback;
+}
+
+/** Amp loads skills through a tool named `skill` (see AmpSkills). */
+function isSkillToolName(name: string | undefined): boolean {
+  return name !== undefined && name.toLowerCase() === "skill";
+}
+
+function skillTitle(
+  name: string | undefined,
+  input: Readonly<Record<string, unknown>> | undefined,
+): string | undefined {
+  if (!isSkillToolName(name)) return undefined;
+  const skillName =
+    stringInput(input, "skill") ??
+    stringInput(input, "name") ??
+    stringInput(input, "skill_name") ??
+    stringInput(input, "skillName");
+  return skillName ? `Reading ${skillName.slice(0, 120)}` : "Reading a skill";
+}
+
+function itemTitle(
+  name: string | undefined,
+  input: Readonly<Record<string, unknown>> | undefined,
+): string | undefined {
+  if (name === undefined) return undefined;
+  const skill = skillTitle(name, input);
+  if (skill !== undefined) return skill;
+  const normalized = name.toLowerCase();
+  if (normalized === "task" || normalized === "subagent") return subagentTitle(input, name);
+  return name;
+}
+
 /**
  * Collapsed work-log labels fall through to `detail` when the tool has no
  * presentation and no command. Command and file rows want the real text; MCP
@@ -245,13 +299,14 @@ export function ampMessageEvents(message: AmpMessage, turn: AmpTurn): ReadonlyAr
       if (turn.tools.has(block.id)) continue;
       turn.tools.set(block.id, { name: block.name, input: block.input });
       const itemType = ampToolType(block.name);
+      const title = itemTitle(block.name, block.input);
       events.push({
         type: "item.started",
         turnId,
         itemId: RuntimeItemId.make(block.id),
         payload: {
           itemType,
-          title: block.name,
+          title,
           status: "inProgress",
           data: toolData(itemType, block.name, block.input),
           ...attribution,
@@ -260,6 +315,8 @@ export function ampMessageEvents(message: AmpMessage, turn: AmpTurn): ReadonlyAr
       });
       if (itemType === "collab_agent_tool_call") {
         turn.hasSubagents = true;
+        const description =
+          stringInput(block.input, "description") ?? stringInput(block.input, "prompt");
         events.push({
           type: "task.started",
           turnId,
@@ -268,7 +325,8 @@ export function ampMessageEvents(message: AmpMessage, turn: AmpTurn): ReadonlyAr
             taskType: "subagent",
             agentKind: "agent",
             toolUseId: block.id,
-            title: block.name,
+            title: title ?? block.name,
+            ...(description ? { description: description.slice(0, 200) } : {}),
             ...attribution,
           },
           raw,
@@ -332,7 +390,7 @@ export function ampMessageEvents(message: AmpMessage, turn: AmpTurn): ReadonlyAr
         itemId,
         payload: {
           itemType,
-          title: tool?.name,
+          title: itemTitle(tool?.name, tool?.input) ?? tool?.name,
           status: failed ? "failed" : "completed",
           ...(detail !== undefined ? { detail } : {}),
           data: {
