@@ -122,6 +122,38 @@ describe("runtimeEventToActivities tool streaming persistence", () => {
     expect(JSON.stringify(data).length).toBeLessThan(1_000);
   });
 
+  it("keeps long terminal tool detail under a generous bound, not the 180-char cap", () => {
+    const longOutput = `${"x".repeat(9_000)}`;
+    const event = {
+      ...base,
+      type: "item.completed",
+      eventId: EventId.make("evt-tool-long-detail"),
+      payload: {
+        itemType: "command_execution",
+        status: "completed",
+        title: "Ran build",
+        detail: longOutput,
+      },
+    } satisfies ProviderRuntimeEvent;
+
+    const activities = runtimeEventToActivities(event);
+
+    const payload = activities[0]?.payload as Record<string, unknown>;
+    const detail = payload.detail as string;
+    // Well past the old in-flight cap, and cut with an explicit notice.
+    expect(detail.length).toBeGreaterThan(180);
+    expect(detail).toMatch(/truncated \(showing first 8000 characters\)$/);
+    const inFlightEvent = {
+      ...base,
+      type: "item.updated",
+      eventId: EventId.make("evt-tool-inflight"),
+      payload: { itemType: "command_execution", status: "inProgress", detail: longOutput },
+    } satisfies ProviderRuntimeEvent;
+    const inFlight = runtimeEventToActivities(inFlightEvent);
+    // In-flight rows still summarize so streaming stays O(1) per chunk.
+    expect((inFlight[0]?.payload as Record<string, unknown>).detail).toHaveLength(180);
+  });
+
   it("persists the full terminal payload on tool.completed", () => {
     const event = {
       ...base,

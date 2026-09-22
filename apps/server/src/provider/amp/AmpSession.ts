@@ -15,6 +15,16 @@ interface PendingApproval {
   readonly decision: Deferred.Deferred<ProviderApprovalDecision>;
   readonly type: CanonicalRequestType;
 }
+
+/**
+ * A structured question surfaced in T3's UI through the t3-code MCP ask_user
+ * tool. `resolution` settles with the recorded answers, or undefined when the
+ * user dismissed the question.
+ */
+export interface PendingUserInput {
+  readonly questions: ReadonlyArray<import("@t3tools/contracts").UserInputQuestion>;
+  readonly resolution: Deferred.Deferred<Record<string, unknown> | undefined>;
+}
 export interface AmpSession {
   session: ProviderSession;
   readonly input: ProviderSessionStartInput;
@@ -22,6 +32,7 @@ export interface AmpSession {
   readonly lock: Semaphore.Semaphore;
   readonly turns: Array<AmpTurn>;
   readonly pending: Map<ApprovalRequestId, PendingApproval>;
+  readonly pendingUserInputs: Map<ApprovalRequestId, PendingUserInput>;
   readonly approvedTools: Set<string>;
   readonly turnPromptOffsets: Array<number>;
   promptCount: number;

@@ -35,6 +35,8 @@ import {
   DeviceScreenshotToolkitHandlersLive,
   DeviceStandardToolkitHandlersLive,
 } from "./toolkits/device/handlers.ts";
+import { AskUserToolkit } from "./toolkits/askUser/tools.ts";
+import { AskUserToolkitHandlersLive } from "./toolkits/askUser/handlers.ts";
 import {
   DeviceScreenshotTool,
   DeviceScreenshotToolkit,
@@ -628,8 +630,13 @@ const McpTransportLive = McpServer.layerHttp({
   protocols: [McpProtocol.v2025_06_18],
 }).pipe(Layer.provide(McpAuthMiddlewareLive));
 
+const AskUserToolkitRegistrationLive = McpServer.toolkit(AskUserToolkit).pipe(
+  Layer.provide(AskUserToolkitHandlersLive),
+);
+
 export const layer = Layer.mergeAll(
   PreviewToolkitRegistrationLive,
   PullRequestsToolkitRegistrationLive,
   DeviceToolkitRegistrationLive,
+  AskUserToolkitRegistrationLive,
 ).pipe(Layer.provideMerge(McpTransportLive));

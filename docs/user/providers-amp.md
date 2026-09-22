@@ -77,15 +77,18 @@ Image uploads, file attachments, skills, and T3's connected tools use the native
 Amp runtime. T3 does not surface Amp's plan mode or a manual compaction
 command. Ask for a plan in a normal message when needed.
 
-Expand tool activity to see result previews. Subagent activity includes the
-parent task and its result, but not the child's individual tool calls. For a
-saved image, use its local file path in the reply or expand its media-view tool
-activity. Image data returned only inside a tool result has no inline preview.
-Protected Amp image URLs are not downloaded automatically by T3.
+Expand tool activity to see result previews. Completed tool rows keep a generous
+bound of real output in the expanded view instead of a short snippet. When Amp
+saves an image to disk (for example through `view_media`), the row shows the
+image inline. Protected Amp image URLs are not downloaded automatically by T3.
 
-Amp plugin confirmation, input, and selection dialogs are not connected to T3.
-A plugin waiting for one of these dialogs can remain pending. Stop that turn
-and use a plugin flow that accepts its inputs through chat or tool arguments.
+Agents on this thread can ask you structured questions with the t3-code
+`ask_user` tool: the question appears in T3 with clickable options and the
+agent receives your choice. Amp's own `ask_user_choice` tool is redirected to
+the same flow. Plugin confirmation, input, and selection dialogs (`ui.confirm`,
+`ui.input`, `ui.select`) are not connected: with no Amp UI attached a plugin
+waiting on one stalls, so stop that turn and use a plugin flow that accepts its
+inputs through chat or tool arguments.
 
 ## Continue a conversation
 

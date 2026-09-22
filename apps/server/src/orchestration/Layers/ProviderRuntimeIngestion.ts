@@ -184,8 +184,27 @@ function maxCheckpointTurnCount(
   return maxTurnCount;
 }
 
+/**
+ * Row labels and in-flight previews stay short: they render inline and the
+ * projection summarizes them anyway. Terminal tool rows use `boundedDetail`
+ * instead, so the expanded work-log body shows the real output.
+ */
 function truncateDetail(value: string, limit = 180): string {
   return value.length > limit ? `${value.slice(0, limit - 3)}...` : value;
+}
+
+/**
+ * Detail bound for terminal tool rows (`tool.completed`). The old 180-char cap
+ * cut real output out of the expanded row, and no reader can recover it: the
+ * projection summarizes whatever ingestion persisted. 8,000 characters covers
+ * the last pages of a build log without streaming O(N²) updates into the
+ * event store; this row is written once per call.
+ */
+const TERMINAL_TOOL_DETAIL_LIMIT = 8_000;
+function boundedDetail(value: string): string {
+  return value.length > TERMINAL_TOOL_DETAIL_LIMIT
+    ? `${value.slice(0, TERMINAL_TOOL_DETAIL_LIMIT)}\n… truncated (showing first ${TERMINAL_TOOL_DETAIL_LIMIT} characters)`
+    : value;
 }
 
 function normalizeProposedPlanMarkdown(planMarkdown: string | undefined): string | undefined {
@@ -961,7 +980,7 @@ export function runtimeEventToActivities(
             ...(event.itemId !== undefined ? { toolCallId: event.itemId } : {}),
             ...(event.payload.status ? { status: event.payload.status } : {}),
             ...(event.payload.title ? { title: event.payload.title } : {}),
-            ...(event.payload.detail ? { detail: truncateDetail(event.payload.detail) } : {}),
+            ...(event.payload.detail ? { detail: boundedDetail(event.payload.detail) } : {}),
             ...(event.payload.toolSurface ? { toolSurface: event.payload.toolSurface } : {}),
             ...(event.payload.toolIcon ? { toolIcon: event.payload.toolIcon } : {}),
             ...(event.payload.toolSource ? { toolSource: event.payload.toolSource } : {}),

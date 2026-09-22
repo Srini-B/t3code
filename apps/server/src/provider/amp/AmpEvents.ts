@@ -284,6 +284,15 @@ export function ampMessageEvents(message: AmpMessage, turn: AmpTurn): ReadonlyAr
         rawOutput;
       const failed = block.is_error || (result?.exitCode !== undefined && result.exitCode !== 0);
       const itemId = RuntimeItemId.make(block.tool_use_id);
+      // Media saved to disk by the provider (e.g. view_media) is surfaced as a
+      // viewable preview: `data.imagePath` is what both clients render.
+      const savedImagePath = mediaResult
+        ?.flatMap((part) =>
+          part.type === "image" && part.savedPath
+            ? [filePath(part.savedPath) ?? part.savedPath]
+            : [],
+        )
+        .find((candidate) => isWorkspaceImagePreviewPath(candidate));
       if (output && (itemType === "command_execution" || itemType === "file_change")) {
         events.push({
           type: "content.delta",
@@ -308,6 +317,7 @@ export function ampMessageEvents(message: AmpMessage, turn: AmpTurn): ReadonlyAr
           data: {
             ...toolData(itemType, tool?.name, tool?.input),
             output,
+            ...(savedImagePath ? { imagePath: savedImagePath } : {}),
             ...(itemType === "mcp_tool_call" ? { result: { ...block, content: output } } : {}),
             ...(fileResult
               ? {

@@ -8,7 +8,9 @@ import {
   type AmpSettings,
   type CanonicalRequestType,
   type ProviderApprovalDecision,
+  type ProviderUserInputAnswers,
   type ThreadId,
+  type UserInputQuestion,
 } from "@t3tools/contracts";
 import { getModelSelectionBooleanOptionValue } from "@t3tools/shared/model";
 import * as Crypto from "effect/Crypto";
@@ -46,6 +48,11 @@ import type { AmpSession } from "../amp/AmpSession.ts";
 import { discoverAmpSkills, rewriteAmpSkillMentions } from "../Drivers/AmpSkills.ts";
 import { buildAmpPrompt } from "../amp/AmpPrompt.ts";
 import { startAmpPermissions } from "../amp/AmpPermissions.ts";
+import {
+  clearAmpUserInputBridge,
+  setAmpUserInputBridge,
+  type AmpUserInputBridge,
+} from "../amp/AmpUserInputBridge.ts";
 import { readAmpHistory, runAmpReadCommand } from "../amp/AmpHistory.ts";
 import { assertAmpSupervision, makeAmpSettings, startAmpProcess } from "../amp/AmpProcess.ts";
 import {
@@ -147,6 +154,8 @@ export const makeAmpAdapter = Effect.fn("makeAmpAdapter")(function* (
         );
   const settleApprovals = Effect.fn("AmpAdapter.settleApprovals")(function* (ctx: AmpSession) {
     for (const pending of ctx.pending.values()) yield* Deferred.succeed(pending.decision, "cancel");
+    for (const pending of ctx.pendingUserInputs.values())
+      yield* Deferred.succeed(pending.resolution, undefined);
   });
   const completeTurn = Effect.fn("AmpAdapter.completeTurn")(function* (
     ctx: AmpSession,
@@ -329,6 +338,46 @@ export const makeAmpAdapter = Effect.fn("makeAmpAdapter")(function* (
     });
     return resolved === "accept" || resolved === "acceptForSession";
   });
+  /**
+   * Surfaces a structured question in T3's UI and waits for the answer. The
+   * t3-code MCP ask_user tool calls this; the runtime resolves it through
+   * `respondToUserInput` and the MCP handler maps the result back to Amp.
+   */
+  const openUserInput = Effect.fn("AmpAdapter.openUserInput")(function* (
+    ctx: AmpSession,
+    questions: ReadonlyArray<UserInputQuestion>,
+  ) {
+    const requestId = ApprovalRequestId.make(yield* uuid);
+    const resolution = yield* Deferred.make<Record<string, unknown> | undefined>();
+    if (ctx.session.status === "closed" || ctx.activity.kind !== "running")
+      return yield* requestError(
+        "input/open",
+        "Amp can only ask questions while a turn is running.",
+      );
+    const turnId = ctx.activity.turn.id;
+    ctx.pendingUserInputs.set(requestId, { questions, resolution });
+    yield* emit(ctx, {
+      type: "user-input.requested",
+      requestId: RuntimeRequestId.make(requestId),
+      turnId,
+      payload: { questions },
+      raw: { source: "amp.cli", method: "t3-code/ask_user", payload: { questions } },
+    });
+    const answer = yield* Deferred.await(resolution).pipe(Effect.timeoutOption("10 minutes"));
+    ctx.pendingUserInputs.delete(requestId);
+    if (answer._tag === "None" || answer.value === undefined)
+      yield* emit(ctx, {
+        type: "user-input.resolved",
+        requestId: RuntimeRequestId.make(requestId),
+        turnId,
+        payload: { answers: {} },
+      });
+    return answer._tag === "Some" ? answer.value : undefined;
+  });
+  const makeUserInputBridge = (ctx: AmpSession): AmpUserInputBridge => ({
+    openQuestion: (questions) =>
+      Effect.runPromise(ctx.lock.withPermits(1)(openUserInput(ctx, questions)).pipe(Effect.scoped)),
+  });
   const startSession: AmpAdapterShape["startSession"] = Effect.fn("AmpAdapter.startSession")(
     function* (input) {
       const existing = sessions.get(input.threadId);
@@ -363,6 +412,7 @@ export const makeAmpAdapter = Effect.fn("makeAmpAdapter")(function* (
         scope,
         lock: yield* Semaphore.make(1),
         pending: new Map(),
+        pendingUserInputs: new Map(),
         approvedTools: new Set(),
         activity: { kind: "idle" },
         process: { kind: "offline" },
@@ -434,6 +484,14 @@ export const makeAmpAdapter = Effect.fn("makeAmpAdapter")(function* (
       );
       ctx.launch = { ...files, environment: permissions.environment };
       sessions.set(input.threadId, ctx);
+      setAmpUserInputBridge({
+        threadId: input.threadId,
+        // The ask_user tool is only reachable through this thread's MCP
+        // endpoint, whose credential carries the environment id; without MCP
+        // there is no caller, so a missing id simply never matches.
+        environmentId: mcp?.environmentId,
+        bridge: makeUserInputBridge(ctx),
+      });
       yield* checkSupervision(ctx).pipe(
         Effect.onError(() =>
           Effect.sync(() => {
@@ -582,6 +640,7 @@ export const makeAmpAdapter = Effect.fn("makeAmpAdapter")(function* (
       updatedAt: yield* now,
     };
     yield* settleApprovals(ctx);
+    clearAmpUserInputBridge(ctx.session.threadId);
     yield* stopProcess(ctx, graceful);
     yield* Scope.close(ctx.scope, Exit.void);
     yield* emit(ctx, {
@@ -628,13 +687,20 @@ export const makeAmpAdapter = Effect.fn("makeAmpAdapter")(function* (
         yield* Deferred.succeed(pending.decision, decision);
       },
     ),
-    respondToUserInput: () =>
-      Effect.fail(
-        requestError(
+    respondToUserInput: Effect.fn("AmpAdapter.respondToUserInput")(function* (
+      threadId,
+      requestId,
+      answers: ProviderUserInputAnswers,
+    ) {
+      const ctx = yield* requireSession(threadId);
+      const pending = ctx.pendingUserInputs.get(requestId);
+      if (!pending)
+        return yield* requestError(
           "input/respond",
-          "Amp asks questions through normal chat messages. Reply with a new message.",
-        ),
-      ),
+          `Unknown pending user-input request '${requestId}'.`,
+        );
+      yield* Deferred.succeed(pending.resolution, answers);
+    }),
     stopSession: Effect.fn("AmpAdapter.stopSession")(function* (threadId) {
       const ctx = yield* requireSession(threadId);
       yield* ctx.lock.withPermits(1)(stopSessionInternal(ctx));

@@ -148,7 +148,9 @@ describe("ampMessageEvents tool result normalization", () => {
     );
     const completed = events.find((event) => event.type === "item.completed")!;
     expect(completed.payload.itemType).toBe("image_view");
-    expect((completed.payload.data as { imagePath?: string }).imagePath).toBe("img.png");
+    // The saved artifact wins over the tool's input path: it is the file that
+    // actually exists to render.
+    expect((completed.payload.data as { imagePath?: string }).imagePath).toBe("/ws/img.png");
     expect(completed.payload.detail as string).toContain("/ws/img.png");
   });
 
@@ -224,6 +226,37 @@ describe("ampMessageEvents lifecycle", () => {
     )) {
       expect((event.payload as { parentToolUseId?: string }).parentToolUseId).toBe("agent-1");
     }
+  });
+
+  it("surfaces a saved image from a media result as a viewable imagePath", () => {
+    const turn = turnWithTools();
+    const events = ampMessageEvents(
+      {
+        session_id: "native-1",
+        type: "assistant",
+        message: {
+          id: "msg-media",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "tool-media",
+              content: JSON.stringify([
+                {
+                  type: "image",
+                  mimeType: "image/png",
+                  savedPath: "file:///tmp/shot.png",
+                },
+              ]),
+            },
+          ],
+        },
+      } as unknown as AmpMessage,
+      turn,
+    );
+    const completed = events.find((event) => event.type === "item.completed");
+    expect(completed).toBeDefined();
+    const data = completed!.payload.data as Record<string, unknown>;
+    expect(data.imagePath).toBe("/tmp/shot.png");
   });
 
   it("maps tool names to canonical item types", () => {

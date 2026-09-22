@@ -59,13 +59,72 @@ the mobile change reuses the update RPC verified natively on 13 September.
 ## Still open, by cause
 
 - Upstream Amp behavior: the next inference after a void-returning plugin fails
-  (`400 Missing required parameter`), Ultra fails with an unknown-provider 400,
-  and native response latency can run to minutes.
+  (`400 Missing required parameter`) and native response latency can run to
+  minutes. Ultra's unknown-provider 400 no longer reproduces (see the 22
+  September section).
 - Requires another machine: native Windows and Android execution; macOS x64 and
   Linux ARM64.
-- Open design decisions: rich tool-output rendering, bridging Amp's plugin
-  dialogs into T3 approvals, structured questions (`respondToUserInput`), and
-  plan mode.
+- Open design decisions: plan mode (kept unsupported by choice).
+
+## 22 September follow-up: the four open design decisions
+
+The user chose to proceed on all remaining decisions: rich tool output "for all,
+no limitation", bridge plugin dialogs into T3 approvals, wire structured
+questions into the user-input flow, and skip plan mode. All four are now
+resolved in code or by probe:
+
+### Ultra mode re-verified
+
+A native headless Ultra turn succeeded (8.6s inference, no 400). Ultra also
+resolves an expanded toolset (`painter`, `code_exec`, `tool_search`,
+`view_media`, `ask_user_choice`). The earlier unknown-provider failure was on
+Amp's side and is gone.
+
+### Structured questions: real bridge, not a redirect
+
+Probes established the constraints: Amp's native `ask_user_choice` auto-answers
+in headless execute mode ("User selected option 1") with no external answer
+channel — stdin JSONL, permission allow/deny, and `--dangerously-allow-all` all
+cannot supply the chosen option, and a pending call hangs the turn. The t3-code
+permission delegate sees the call but cannot answer it.
+
+So the bridge is a new MCP tool instead. The Amp adapter registers a
+per-thread bridge at session start (`AmpUserInputBridge.ts`); the t3-code MCP
+server gains an `ask_user` toolkit (`mcp/toolkits/askUser/`) whose handler
+emits T3's standard `user-input.requested` flow and awaits the answer; the
+adapter's `respondToUserInput` (previously a hard failure) resolves it and the
+MCP handler maps the recorded answers back to the tool result. Question
+mapping, bounds, and answer extraction have unit tests. `ask-user` joins the
+MCP capability set granted to every provider session credential.
+
+### Plugin dialogs and native ask_user_choice: guided away, honestly
+
+There is no external channel to answer plugin `ui.confirm/ui.input/ui.select`
+or native `ask_user_choice` (probes above), so bridging them is impossible
+without an Amp upstream change. Instead the runtime instructions now carry an
+Amp-only `<user_interaction>` block: use t3-code `ask_user` when available,
+otherwise ask in plain text and end the turn, and never call the interactive
+prompt tools that would stall the session. The user guide documents the
+behavior as it is.
+
+### Rich tool output
+
+- Terminal `tool.completed` rows now persist up to 8,000 characters of real
+  detail (bounded with an explicit truncation notice) instead of the 180-char
+  cap; in-flight `tool.updated` rows still summarize to keep streaming O(1).
+- Media results with a saved path now set `data.imagePath` (saved artifact
+  wins over the tool input path), so `view_media` images render inline in web
+  and mobile.
+
+### Verification
+
+Server typecheck clean; 107 tests across the amp/mcp scope plus the ingestion
+activity tests pass (118 with the RuntimeInstructions scope); targeted lint on
+all changed files is clean. Native probes: Ultra turn succeeded;
+`ask_user_choice` auto-answer and stdin/deny/allow-all answer-channel probes
+were all negative, establishing the bridge design. The full MCP ask_user flow
+was not exercised against a live Amp session yet — the adapter, toolkit, and
+answer path are unit-tested separately.
 
 ## Accepted limitations (decided 2026-09-21)
 
