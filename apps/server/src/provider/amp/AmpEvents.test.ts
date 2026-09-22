@@ -178,6 +178,28 @@ describe("ampMessageEvents tool result normalization", () => {
     expect(completed.payload.status).toBe("failed");
     expect(completed.payload.detail).toBe("mcp payload");
   });
+
+  it("omits raw JSON detail so the row label falls back to the tool title", () => {
+    const turn = turnWithTools();
+    const json = JSON.stringify({
+      data: { results: [{ index: 1, use_case: "inspect GitHub repositories" }] },
+    });
+    const events = ampMessageEvents(
+      {
+        session_id: "native-1",
+        type: "assistant",
+        message: {
+          id: "msg-json",
+          content: [{ type: "tool_result", tool_use_id: "tool-mcp", content: json }],
+        },
+      } as unknown as AmpMessage,
+      turn,
+    );
+    const completed = events.find((event) => event.type === "item.completed")!;
+    expect(completed.payload.detail).toBeUndefined();
+    expect((completed.payload.data as { output: string }).output).toBe(json);
+    expect(completed.payload.title).toBe("mcp__svc__tool");
+  });
 });
 
 describe("ampMessageEvents lifecycle", () => {

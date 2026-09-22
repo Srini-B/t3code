@@ -71,6 +71,12 @@ export function normalizeCompactToolLabel(value: string): string {
   return value.replace(/\s+(?:complete|completed)\s*$/i, "").trim();
 }
 
+/** Raw MCP/JSON payloads stored as detail are not readable row labels. */
+export function detailLooksLikeJsonDump(detail: string): boolean {
+  const trimmed = detail.trimStart();
+  return trimmed.startsWith("{") || trimmed.startsWith("[");
+}
+
 const T3_MCP_TOOL_LABELS: Record<
   string,
   readonly [action: string, running: string, completed: string, detail: string]

@@ -52,6 +52,26 @@ function filePath(uri: string): string | undefined {
   }
 }
 
+/** Minified MCP/dynamic results start with a brace or bracket and read as noise in a row label. */
+function looksLikeJsonDump(value: string): boolean {
+  const trimmed = value.trimStart();
+  return trimmed.startsWith("{") || trimmed.startsWith("[");
+}
+
+/**
+ * Collapsed work-log labels fall through to `detail` when the tool has no
+ * presentation and no command. Command and file rows want the real text; MCP
+ * and dynamic results are often raw JSON dumps, so omit them and let the label
+ * fall back to the tool title. Full output stays on `data.output`.
+ */
+function completionDetail(itemType: CanonicalItemType, output: string): string | undefined {
+  if (!output) return undefined;
+  if (itemType !== "command_execution" && itemType !== "file_change" && looksLikeJsonDump(output)) {
+    return undefined;
+  }
+  return output;
+}
+
 function toolData(
   itemType: CanonicalItemType,
   name: string | undefined,
@@ -305,6 +325,7 @@ export function ampMessageEvents(message: AmpMessage, turn: AmpTurn): ReadonlyAr
           raw,
         });
       }
+      const detail = completionDetail(itemType, output);
       events.push({
         type: "item.completed",
         turnId,
@@ -313,7 +334,7 @@ export function ampMessageEvents(message: AmpMessage, turn: AmpTurn): ReadonlyAr
           itemType,
           title: tool?.name,
           status: failed ? "failed" : "completed",
-          ...(output ? { detail: output } : {}),
+          ...(detail !== undefined ? { detail } : {}),
           data: {
             ...toolData(itemType, tool?.name, tool?.input),
             output,

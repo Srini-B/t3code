@@ -17,6 +17,7 @@ import type {
 import { formatDuration } from "@t3tools/shared/orchestrationTiming";
 import {
   commandDetailRepeatsCommand,
+  detailLooksLikeJsonDump,
   extractCommandOutputText,
   extractWorkLogToolLifecycleStatus,
   isWorktreeSetupActivity,
@@ -1061,7 +1062,7 @@ function workEntryPreview(
   workEntry: Pick<WorkLogEntry, "detail" | "command" | "changedFiles">,
 ): string | null {
   if (workEntry.command) return workEntry.command;
-  if (workEntry.detail) return workEntry.detail;
+  if (workEntry.detail && !detailLooksLikeJsonDump(workEntry.detail)) return workEntry.detail;
   if ((workEntry.changedFiles?.length ?? 0) === 0) return null;
   const [firstPath] = workEntry.changedFiles ?? [];
   if (!firstPath) return null;
