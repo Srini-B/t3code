@@ -126,6 +126,25 @@ were all negative, establishing the bridge design. The full MCP ask_user flow
 was not exercised against a live Amp session yet — the adapter, toolkit, and
 answer path are unit-tested separately.
 
+### Handoff: next steps (noted 2026-09-22)
+
+Everything through this commit is delivered and pushed to the fork's `main`
+(`ae6257b89`); the working tree was left clean. The remaining work, in order:
+
+1. Live `ask_user` end-to-end check (any host with Amp credentials): start a
+   supervised disposable Amp session, make the agent call t3-code `ask_user`,
+   answer it in the T3 client, and confirm the answer reaches the tool result
+   and the turn completes.
+2. Integrated web pass on the rich-output changes: expanded completed tool rows
+   show up to 8,000 characters, and saved media renders as an inline preview.
+3. macOS (ARM) native checks: Amp install/ownership probes, one supervised
+   turn, and the ask_user flow above; the Mac mini already paired successfully
+   on 13 September, so this is a re-run on current code rather than first
+   coverage.
+4. Still blocked elsewhere: native Windows and Android execution; Linux ARM64.
+5. Upstream, unchanged: void-returning plugins break Amp's own next inference
+   (`400 Missing required parameter`); inference latency can run to minutes.
+
 ## Accepted limitations (decided 2026-09-21)
 
 - Subagent transcripts: Amp exposes the parent task and its result only. The
